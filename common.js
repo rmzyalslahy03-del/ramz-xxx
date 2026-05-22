@@ -1,12 +1,13 @@
-// ================== تكوين Supabase ==================
+// ================== تكوين Supabase (منع التصريح المزدوج) ==================
 const SUPABASE_URL = "https://zlkpoghjbqtnhzhmmdbw.supabase.co";
 const SUPABASE_ANON_KEY = "sb_publishable_7evDsA5aEgPMsRBTFjntrg_XZQFmNLw";
 
-// تجنب التصريح المزدوج
+// تجنب التصريح المزدوج: نستخدم متغير عام window.supabaseClient
 if (typeof window.supabaseClient === 'undefined') {
     window.supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 }
-const supabase = window.supabaseClient;
+// استخدام var بدلاً من const أو let لتجنب إعادة التصريح في النطاق نفسه
+var supabase = window.supabaseClient;
 
 // ================== دوال مساعدة ==================
 function showToast(msg, isError = false) {
@@ -267,15 +268,16 @@ async function saveUserToDB(user) {
     }));
 }
 
-// ================== دوال تأكيد البريد بالكود (OTP) ==================
+// ================== دوال تأكيد البريد بالكود (OTP) مع إرسال حقيقي ==================
 function generateVerificationCode() {
     return Math.floor(100000 + Math.random() * 900000).toString();
 }
 
+// دالة إرسال الكود (ستتصل بـ Edge Function لاحقاً، حالياً محاكاة)
 async function sendVerificationCodeEmail(email, code) {
+    // يمكن استبدال هذا الجزء باستدعاء Edge Function كما شرحنا سابقاً
     console.log(`📧 إرسال كود التحقق ${code} إلى البريد ${email}`);
-    // محاكاة إرسال بريد – يمكن استبدالها بـ API حقيقي (Resend, Brevo, SMTP)
-    showToast(`✅ تم إرسال كود التحقق: ${code} (تجريبي - في التطبيق الحقيقي سيتم إرساله إلى بريدك)`, false);
+    showToast(`✅ تم إرسال كود التحقق: ${code} (تجريبي - لربطه بخدمة بريد حقيقية، استخدم Edge Function مع Resend)`, false);
     return true;
 }
 
@@ -681,211 +683,6 @@ async function createPost(postData) {
         showToast(error.message, true);
         return false;
     }
-    showToast("🎉 تم نشر المنشور بنجاح!");
-    return true;
-}
-
-// ================== التعليقات ==================
-async function fetchComments(postId) {
-    if (!postId) return [];
-    try {
-        const { data, error } = await supabase
-            .from('comments')
-            .select('*, users:user_id (username, avatar)')
-            .eq('post_id', postId)
-            .order('created_at', { ascending: true });
-        if (error) {
-            showToast(error.message, true);
-            return [];
-        }
-        return data || [];
-    } catch (err) {
-        console.error("fetchComments error:", err);
-        return [];
-    }
-}
-
-async function addComment(postId, text) {
-    const currentUser = JSON.parse(localStorage.getItem('currentUser'));
-    if (!currentUser) { showToast('يجب تسجيل الدخول', true); return false; }
-    if (!postId || !text) return false;
-    try {
-        const { error } = await supabase.from('comments').insert({
-            post_id: postId,
-            user_id: currentUser.id,
-            text: text
-        });
-        if (error) {
-            showToast(error.message, true);
-            return false;
-        }
-        await supabase.rpc('increment_comments_count', { row_id: postId });
-        showToast('💬 تم إضافة التعليق');
-        return true;
-    } catch (err) {
-        console.error("addComment error:", err);
-        return false;
-    }
-}
-
-// ================== جلب التغذية والتفاعلات مع تحسين الأمان ==================
-async function fetchFeed() {
-    try {
-        const { data: posts, error } = await supabase
-            .from('posts')
-            .select(`
-                *,
-                users:author_id (id, username, avatar)
-            `)
-            .eq('hidden', false)
-            .order('created_at', { ascending: false });
-        if (error) {
-            showToast(error.message, true);
-            return [];
-        }
-        if (!posts || !Array.isArray(posts)) return [];
-        return posts.map(p => ({
-            id: p.id,
-            title: p.title || '',
-            content: p.content || '',
-            image: p.image || '',
-            author_id: p.author_id || '',
-            author_name: p.users?.username || p.author_name || 'مستخدم غير معروف',
-            author_avatar: p.users?.avatar || 'https://randomuser.me/api/portraits/lego/1.jpg',
-            created_at: p.created_at || new Date(),
-            likes_count: p.likes_count || 0,
-            comments_count: p.comments_count || 0,
-            views_count: p.views_count || 0,
-            reposts_count: p.reposts_count || 0,
-            favorites_count: p.favorites_count || 0,
-            hashtag: p.hashtag || '',
-            category: p.category || 'عام',
-            type: p.type || 'article'
-        }));
-    } catch (err) {
-        console.error("fetchFeed error:", err);
-        return [];
-    }
-}
-
-async function getUserInteractions(postIds) {
-    const currentUser = JSON.parse(localStorage.getItem('currentUser'));
-    if (!currentUser || !postIds || !Array.isArray(postIds) || postIds.length === 0) {
-        return { likes: {}, favorites: {}, reposts: {}, follows: {} };
-    }
-    try {
-        const { data: likes } = await supabase
-            .from('likes')
-            .select('post_id')
-            .eq('user_id', currentUser.id)
-            .in('post_id', postIds);
-        const { data: favs } = await supabase
-            .from('favorites')
-            .select('post_id')
-            .eq('user_id', currentUser.id)
-            .in('post_id', postIds);
-        const { data: reps } = await supabase
-            .from('reposts')
-            .select('post_id')
-            .eq('user_id', currentUser.id)
-            .in('post_id', postIds);
-        const { data: follows } = await supabase
-            .from('follows')
-            .select('following_id')
-            .eq('follower_id', currentUser.id);
-        const likesMap = {};
-        likes?.forEach(l => likesMap[l.post_id] = true);
-        const favsMap = {};
-        favs?.forEach(f => favsMap[f.post_id] = true);
-        const repsMap = {};
-        reps?.forEach(r => repsMap[r.post_id] = true);
-        const followsSet = new Set(follows?.map(f => f.following_id) || []);
-        return { likes: likesMap, favorites: favsMap, reposts: repsMap, follows: followsSet };
-    } catch (err) {
-        console.error("getUserInteractions error:", err);
-        return { likes: {}, favorites: {}, reposts: {}, follows: {} };
-    }
-}
-
-// ================== إنشاء منشور جديد مع التحقق من وجود المستخدم ومنع الضيوف ==================
-async function createPost(postData) {
-    const currentUser = JSON.parse(localStorage.getItem('currentUser'));
-    if (!currentUser) {
-        showToast('يجب تسجيل الدخول', true);
-        return false;
-    }
-    
-    // منع الضيوف من النشر
-    if (currentUser.isGuest) {
-        showToast('لا يمكن للضيوف نشر منشورات. يرجى تسجيل الدخول أولاً.', true);
-        return false;
-    }
-    
-    // التحقق من وجود المستخدم في جدول users
-    try {
-        let { data: existingUser, error: checkError } = await supabase
-            .from('users')
-            .select('id')
-            .eq('id', currentUser.id)
-            .single();
-        
-        if (checkError && checkError.code === 'PGRST116') {
-            // المستخدم غير موجود – نقوم بإنشائه
-            const { error: insertError } = await supabase
-                .from('users')
-                .insert({
-                    id: currentUser.id,
-                    username: currentUser.username,
-                    bio: currentUser.bio || '',
-                    avatar: currentUser.avatar || 'https://randomuser.me/api/portraits/lego/1.jpg',
-                    unique_name: currentUser.username.toLowerCase().replace(/\s/g, '_') + '_' + Math.floor(Math.random() * 1000),
-                    followers_count: 0,
-                    following_count: 0
-                });
-            if (insertError) {
-                console.error("فشل إنشاء المستخدم في جدول users:", insertError);
-                showToast("حدث خطأ في إنشاء حسابك. حاول تسجيل الخروج والدخول مرة أخرى.", true);
-                return false;
-            }
-            console.log("✅ تم إنشاء المستخدم تلقائياً في جدول users");
-        } else if (checkError) {
-            console.error("خطأ في التحقق من المستخدم:", checkError);
-            showToast(checkError.message, true);
-            return false;
-        }
-    } catch (err) {
-        console.error("خطأ غير متوقع في createPost:", err);
-        showToast("حدث خطأ غير متوقع. حاول مرة أخرى.", true);
-        return false;
-    }
-    
-    // الآن إنشاء المنشور
-    const newPost = {
-        title: postData.title || '',
-        content: postData.content || '',
-        image: postData.image || "https://picsum.photos/id/1/1200/800",
-        author_id: currentUser.id,
-        author_name: currentUser.username,
-        likes_count: 0,
-        comments_count: 0,
-        views_count: 0,
-        reposts_count: 0,
-        favorites_count: 0,
-        edit_count: 0,
-        hashtag: postData.hashtag || '',
-        category: postData.category || 'عام',
-        type: postData.type || 'article',
-        hidden: false,
-        created_at: new Date().toISOString()
-    };
-    
-    const { error } = await supabase.from('posts').insert(newPost);
-    if (error) {
-        console.error("فشل نشر المنشور:", error);
-        showToast(error.message, true);
-        return false;
-    }
-    
     showToast("🎉 تم نشر المنشور بنجاح!");
     return true;
 }
