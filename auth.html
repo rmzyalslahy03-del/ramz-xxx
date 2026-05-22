@@ -20,6 +20,7 @@
         body.light .header,
         body.light .auth-container,
         body.light .auth-card,
+        body.light .modal-content,
         body.light .bottom-footer {
             background-color: #fff;
             color: #000;
@@ -149,6 +150,25 @@
             background: #e00046;
             transform: translateY(-2px);
         }
+        .btn-outline {
+            width: 100%;
+            padding: 0.8rem;
+            border-radius: 2rem;
+            background: transparent;
+            border: 1px solid #ff0050;
+            color: #ff0050;
+            font-weight: bold;
+            cursor: pointer;
+            transition: 0.2s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.5rem;
+        }
+        .btn-outline:hover {
+            background: rgba(255,0,80,0.1);
+            transform: translateY(-2px);
+        }
         .divider {
             text-align: center;
             margin: 1.5rem 0;
@@ -225,7 +245,66 @@
         .label {
             font-size: 11px;
         }
-        /* شريط التقدم */
+        /* نافذة الكود المنبثقة */
+        .modal {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.8);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 2000;
+            visibility: hidden;
+            opacity: 0;
+            transition: 0.2s;
+        }
+        .modal.open {
+            visibility: visible;
+            opacity: 1;
+        }
+        .modal-content {
+            background: #111;
+            border-radius: 1.5rem;
+            max-width: 500px;
+            width: 90%;
+            padding: 1.5rem;
+            position: relative;
+        }
+        .modal-header {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 1rem;
+            color: white;
+        }
+        .close-modal {
+            background: none;
+            border: none;
+            font-size: 1.2rem;
+            cursor: pointer;
+            color: white;
+        }
+        #verificationCode {
+            width: 100%;
+            padding: 0.8rem;
+            border-radius: 2rem;
+            text-align: center;
+            font-size: 1.2rem;
+            background: #1a1a1a;
+            border: 1px solid #2c2c2c;
+            color: white;
+            margin: 1rem 0;
+        }
+        #verificationCode:focus {
+            border-color: #ff0050;
+            outline: none;
+        }
+        .flex-buttons {
+            display: flex;
+            gap: 1rem;
+        }
         .progress-toast {
             position: fixed;
             bottom: 80px;
@@ -270,7 +349,6 @@
             color: white;
             padding: 12px 16px;
             border-radius: 40px;
-            text-align: center;
             z-index: 1000;
             opacity: 0;
             transition: opacity 0.2s;
@@ -278,13 +356,8 @@
             font-size: 14px;
             border-left: 4px solid #fe2c55;
         }
-        body.light #globalToast {
-            background: #333;
-        }
         @media (max-width: 640px) {
-            .auth-card {
-                padding: 1.5rem;
-            }
+            .auth-card { padding: 1.5rem; }
         }
     </style>
 </head>
@@ -318,7 +391,7 @@
             <button class="guest-btn" id="guestLoginBtn"><i class="fas fa-user-friends"></i> دخول كضيف</button>
         </div>
 
-        <!-- نموذج إنشاء حساب -->
+        <!-- نموذج إنشاء حساب (بطلب كود التحقق أولاً) -->
         <div id="registerForm" class="auth-form">
             <div class="input-group">
                 <label>الاسم الكامل</label>
@@ -336,7 +409,7 @@
                 <label>تأكيد كلمة المرور</label>
                 <input type="password" id="registerConfirmPassword" placeholder="********" autocomplete="new-password">
             </div>
-            <button class="btn-submit" id="registerBtn">إنشاء حساب</button>
+            <button class="btn-submit" id="requestCodeBtn">طلب كود التحقق</button>
             <div class="divider">أو</div>
             <button class="google-btn" id="googleRegisterBtn"><i class="fab fa-google"></i> التسجيل عبر Google</button>
             <button class="guest-btn" id="guestRegisterBtn"><i class="fas fa-user-friends"></i> دخول كضيف</button>
@@ -358,11 +431,28 @@
     <div class="progress-bar"><div class="progress-fill" id="progressFill"></div></div>
 </div>
 
+<!-- نافذة إدخال كود التحقق -->
+<div id="verificationModal" class="modal">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h3>🔐 تأكيد البريد الإلكتروني</h3>
+            <button class="close-modal" onclick="closeVerificationModal()"><i class="fas fa-times"></i></button>
+        </div>
+        <p style="color: #aaa;">تم إرسال كود التحقق إلى بريدك الإلكتروني. أدخل الكود أدناه:</p>
+        <input type="text" id="verificationCode" placeholder="أدخل الكود (6 أرقام)" maxlength="6">
+        <div class="flex-buttons">
+            <button id="verifyCodeBtn" class="btn-submit" style="flex:1;">تحقق</button>
+            <button id="resendCodeBtn" class="btn-outline" style="flex:1;">إعادة إرسال</button>
+        </div>
+        <button class="btn-outline" onclick="closeVerificationModal()" style="margin-top: 1rem;">إلغاء</button>
+    </div>
+</div>
+
 <!-- ========== ترتيب التحميل الصحيح ========== -->
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="common.js"></script>
 <script>
-    // شريط التقدم
+    // دوال مساعدة محلية (تستخدم common.js التي تحتوي على دوال OTP)
     function showProgress(message, duration = 1500) {
         const toast = document.getElementById('progressToast');
         const textEl = document.getElementById('progressText');
@@ -382,60 +472,32 @@
         }, 20);
     }
 
-    // دوال مساعدة (من common.js)
-    async function saveUserToDB(user) {
-        if (!user) return;
-        const { data: existing } = await supabase.from('users').select('id').eq('id', user.id).single();
-        if (!existing) {
-            const username = user.user_metadata?.full_name || user.email.split('@')[0];
-            const uniqueName = user.email.split('@')[0] + '_' + Math.floor(Math.random() * 1000);
-            await supabase.from('users').insert({
-                id: user.id,
-                username: username,
-                full_name: user.user_metadata?.full_name || '',
-                bio: 'مرحباً، أنا مستخدم جديد على Ramz-X',
-                avatar: user.user_metadata?.avatar_url || 'https://randomuser.me/api/portraits/lego/1.jpg',
-                unique_name: uniqueName,
-                followers_count: 0,
-                following_count: 0
-            });
-        }
-        localStorage.setItem('currentUser', JSON.stringify({
-            id: user.id,
-            username: user.user_metadata?.full_name || user.email.split('@')[0],
-            email: user.email,
-            avatar: user.user_metadata?.avatar_url || 'https://randomuser.me/api/portraits/lego/1.jpg'
-        }));
-    }
+    // ربط التبويبات
+    const loginTab = document.querySelector('[data-tab="login"]');
+    const registerTab = document.querySelector('[data-tab="register"]');
+    const loginForm = document.getElementById('loginForm');
+    const registerForm = document.getElementById('registerForm');
 
+    loginTab.addEventListener('click', () => {
+        loginTab.classList.add('active');
+        registerTab.classList.remove('active');
+        loginForm.classList.add('active');
+        registerForm.classList.remove('active');
+    });
+    registerTab.addEventListener('click', () => {
+        registerTab.classList.add('active');
+        loginTab.classList.remove('active');
+        registerForm.classList.add('active');
+        loginForm.classList.remove('active');
+    });
+
+    // دوال تسجيل الدخول (تستخدم common.js)
     async function handleLogin(email, password) {
         const { data, error } = await supabase.auth.signInWithPassword({ email, password });
         if (error) { showToast(error.message, true); return false; }
         await saveUserToDB(data.user);
         showToast(`مرحباً ${data.user.email}، تم تسجيل الدخول بنجاح!`);
         setTimeout(() => window.location.href = 'home.html', 1500);
-        return true;
-    }
-
-    async function handleRegister(name, email, password) {
-        const { data, error } = await supabase.auth.signUp({
-            email,
-            password,
-            options: {
-                data: {
-                    full_name: name,
-                    avatar_url: `https://randomuser.me/api/portraits/lego/${Math.floor(Math.random() * 10) + 1}.jpg`
-                }
-            }
-        });
-        if (error) { showToast(error.message, true); return false; }
-        if (data.user) {
-            await saveUserToDB(data.user);
-            showToast(`تم إنشاء الحساب بنجاح! مرحباً ${name}`);
-            setTimeout(() => window.location.href = 'home.html', 1500);
-        } else {
-            showToast('تم إرسال رابط التأكيد إلى بريدك الإلكتروني. يرجى تأكيد البريد ثم تسجيل الدخول.');
-        }
         return true;
     }
 
@@ -458,42 +520,45 @@
         setTimeout(() => window.location.href = 'home.html', 1500);
     }
 
-    // ربط التبويبات
-    const loginTab = document.querySelector('[data-tab="login"]');
-    const registerTab = document.querySelector('[data-tab="register"]');
-    const loginForm = document.getElementById('loginForm');
-    const registerForm = document.getElementById('registerForm');
+    // دوال نافذة الكود
+    function openVerificationModal() {
+        document.getElementById('verificationModal').classList.add('open');
+    }
+    function closeVerificationModal() {
+        document.getElementById('verificationModal').classList.remove('open');
+        document.getElementById('verificationCode').value = '';
+    }
 
-    loginTab.addEventListener('click', () => {
-        loginTab.classList.add('active');
-        registerTab.classList.remove('active');
-        loginForm.classList.add('active');
-        registerForm.classList.remove('active');
-    });
-    registerTab.addEventListener('click', () => {
-        registerTab.classList.add('active');
-        loginTab.classList.remove('active');
-        registerForm.classList.add('active');
-        loginForm.classList.remove('active');
-    });
-
-    // أزرار الإجراءات مع شريط التقدم
-    document.getElementById('loginBtn').addEventListener('click', async () => {
-        const email = document.getElementById('loginEmail').value.trim();
-        const password = document.getElementById('loginPassword').value;
-        if (!email || !password) {
-            showToast('الرجاء إدخال البريد الإلكتروني وكلمة المرور', true);
-            return;
+    // زر التحقق من الكود
+    document.getElementById('verifyCodeBtn').addEventListener('click', async () => {
+        const code = document.getElementById('verificationCode').value.trim();
+        if (!code) { showToast('الرجاء إدخال الكود', true); return; }
+        showProgress('جاري التحقق...', 1000);
+        const success = await verifyCode(code);
+        if (success) {
+            closeVerificationModal();
+            const name = document.getElementById('registerName').value.trim();
+            const email = document.getElementById('registerEmail').value.trim();
+            const password = document.getElementById('registerPassword').value;
+            showProgress('جاري إنشاء الحساب...', 1500);
+            await registerWithVerification(name, email, password);
         }
-        showProgress('جاري تسجيل الدخول...', 1500);
-        await handleLogin(email, password);
     });
 
-    document.getElementById('registerBtn').addEventListener('click', async () => {
+    // زر إعادة إرسال الكود
+    document.getElementById('resendCodeBtn').addEventListener('click', async () => {
+        showProgress('جاري إعادة الإرسال...', 1000);
+        await resendVerificationCode();
+        showToast('📧 تم إعادة إرسال الكود الجديد.', false);
+    });
+
+    // طلب الكود بدلاً من التسجيل المباشر
+    document.getElementById('requestCodeBtn').addEventListener('click', async () => {
         const name = document.getElementById('registerName').value.trim();
         const email = document.getElementById('registerEmail').value.trim();
         const password = document.getElementById('registerPassword').value;
         const confirm = document.getElementById('registerConfirmPassword').value;
+
         if (!name || !email || !password) {
             showToast('الرجاء ملء جميع الحقول', true);
             return;
@@ -506,8 +571,23 @@
             showToast('كلمة المرور يجب أن تكون 6 أحرف على الأقل', true);
             return;
         }
-        showProgress('جاري إنشاء الحساب...', 2000);
-        await handleRegister(name, email, password);
+        showProgress('جاري إرسال الكود...', 1200);
+        const sent = await requestVerificationCode(email);
+        if (sent) {
+            openVerificationModal();
+        }
+    });
+
+    // أزرار تسجيل الدخول والمتفرقات
+    document.getElementById('loginBtn').addEventListener('click', async () => {
+        const email = document.getElementById('loginEmail').value.trim();
+        const password = document.getElementById('loginPassword').value;
+        if (!email || !password) {
+            showToast('الرجاء إدخال البريد الإلكتروني وكلمة المرور', true);
+            return;
+        }
+        showProgress('جاري تسجيل الدخول...', 1500);
+        await handleLogin(email, password);
     });
 
     document.getElementById('googleLoginBtn').addEventListener('click', () => {
@@ -543,7 +623,7 @@
     });
     applyTheme();
 
-    // التحقق من الجلسة الحالية
+    // التحقق من الجلسة الحالية (إذا كان هناك مستخدم مسجل مسبقاً)
     (async () => {
         const { data: { session } } = await supabase.auth.getSession();
         if (session) {
