@@ -236,7 +236,6 @@ async function checkSession() {
         localStorage.setItem('currentUser', JSON.stringify(currentUser));
         return currentUser;
     } else {
-        // لا توجيه تلقائي هنا، يتم التعامل معه في الصفحات
         return null;
     }
 }
@@ -268,11 +267,123 @@ async function saveUserToDB(user) {
     }));
 }
 
-// ================== دوال التفاعل مع تحسين الأمان ==================
+// ================== دوال تأكيد البريد بالكود (OTP) ==================
+function generateVerificationCode() {
+    return Math.floor(100000 + Math.random() * 900000).toString();
+}
+
+async function sendVerificationCodeEmail(email, code) {
+    console.log(`📧 إرسال كود التحقق ${code} إلى البريد ${email}`);
+    // محاكاة إرسال بريد – يمكن استبدالها بـ API حقيقي (Resend, Brevo, SMTP)
+    showToast(`✅ تم إرسال كود التحقق: ${code} (تجريبي - في التطبيق الحقيقي سيتم إرساله إلى بريدك)`, false);
+    return true;
+}
+
+async function requestVerificationCode(email) {
+    if (!email) return false;
+    const { data: existingUser, error } = await supabase
+        .from('users')
+        .select('id')
+        .eq('email', email)
+        .single();
+    if (existingUser) {
+        showToast('⚠️ هذا البريد الإلكتروني مسجل مسبقاً. يرجى تسجيل الدخول.', true);
+        return false;
+    }
+    const code = generateVerificationCode();
+    const expiresAt = new Date(Date.now() + 5 * 60000).toISOString();
+    localStorage.setItem('tempVerification', JSON.stringify({
+        email: email,
+        code: code,
+        expiresAt: expiresAt
+    }));
+    await sendVerificationCodeEmail(email, code);
+    return true;
+}
+
+async function verifyCode(inputCode) {
+    const tempData = JSON.parse(localStorage.getItem('tempVerification'));
+    if (!tempData) {
+        showToast('⚠️ لم يتم طلب كود تحقق. يرجى المحاولة مرة أخرى.', true);
+        return false;
+    }
+    if (Date.now() > new Date(tempData.expiresAt).getTime()) {
+        showToast('⏰ انتهت صلاحية الكود. يرجى طلب كود جديد.', true);
+        localStorage.removeItem('tempVerification');
+        return false;
+    }
+    if (inputCode !== tempData.code) {
+        showToast('❌ الكود غير صحيح. يرجى المحاولة مرة أخرى.', true);
+        return false;
+    }
+    localStorage.setItem('verifiedEmail', tempData.email);
+    localStorage.removeItem('tempVerification');
+    showToast('✅ تم تأكيد البريد الإلكتروني بنجاح! يمكنك إكمال التسجيل.', false);
+    return true;
+}
+
+async function resendVerificationCode() {
+    const tempData = JSON.parse(localStorage.getItem('tempVerification'));
+    if (!tempData) {
+        showToast('⚠️ لا يوجد طلب تحقق نشط.', true);
+        return false;
+    }
+    const newCode = generateVerificationCode();
+    const expiresAt = new Date(Date.now() + 5 * 60000).toISOString();
+    localStorage.setItem('tempVerification', JSON.stringify({
+        email: tempData.email,
+        code: newCode,
+        expiresAt: expiresAt
+    }));
+    await sendVerificationCodeEmail(tempData.email, newCode);
+    showToast('📧 تم إعادة إرسال الكود الجديد.', false);
+    return true;
+}
+
+async function registerWithVerification(name, email, password) {
+    if (!email || !password || !name) {
+        showToast('الرجاء ملء جميع الحقول', true);
+        return false;
+    }
+    const verifiedEmail = localStorage.getItem('verifiedEmail');
+    if (verifiedEmail !== email) {
+        showToast('⚠️ يرجى تأكيد البريد الإلكتروني أولاً عبر كود التحقق.', true);
+        return false;
+    }
+    const { data, error } = await supabase.auth.signUp({
+        email: email,
+        password: password,
+        options: {
+            data: {
+                full_name: name,
+                email_verified: true,
+                avatar_url: `https://randomuser.me/api/portraits/lego/${Math.floor(Math.random() * 10) + 1}.jpg`
+            }
+        }
+    });
+    if (error) {
+        showToast(error.message, true);
+        return false;
+    }
+    if (data.user) {
+        await supabase
+            .from('users')
+            .update({ email_verified: true })
+            .eq('id', data.user.id);
+        localStorage.removeItem('verifiedEmail');
+        showToast(`تم إنشاء الحساب بنجاح! مرحباً ${name}`);
+        setTimeout(() => window.location.href = 'home.html', 1500);
+    } else {
+        showToast('تم إرسال رابط التأكيد إلى بريدك الإلكتروني (طريقة احتياطية).', false);
+    }
+    return true;
+}
+
+// ================== دوال التفاعل ==================
 async function toggleLike(postId, btnElement) {
     const currentUser = JSON.parse(localStorage.getItem('currentUser'));
     if (!currentUser) { showToast('يجب تسجيل الدخول', true); return; }
-    if (!postId || !btnElement) { console.error("Invalid parameters to toggleLike"); return; }
+    if (!postId || !btnElement) return;
     const isLiked = btnElement.classList.contains('liked');
     if (!isLiked) {
         const { error } = await supabase
@@ -420,6 +531,200 @@ async function toggleFollow(authorId, btnElement) {
         if (error) { showToast(error.message, true); return; }
         btnElement.innerText = 'متابعة';
         showToast('✅ تم إلغاء المتابعة');
+    }
+}
+
+// ================== جلب التغذية والتفاعلات ==================
+async function fetchFeed() {
+    try {
+        const { data: posts, error } = await supabase
+            .from('posts')
+            .select(`
+                *,
+                users:author_id (id, username, avatar)
+            `)
+            .eq('hidden', false)
+            .order('created_at', { ascending: false });
+        if (error) {
+            showToast(error.message, true);
+            return [];
+        }
+        if (!posts || !Array.isArray(posts)) return [];
+        return posts.map(p => ({
+            id: p.id,
+            title: p.title || '',
+            content: p.content || '',
+            image: p.image || '',
+            author_id: p.author_id || '',
+            author_name: p.users?.username || p.author_name || 'مستخدم غير معروف',
+            author_avatar: p.users?.avatar || 'https://randomuser.me/api/portraits/lego/1.jpg',
+            created_at: p.created_at || new Date(),
+            likes_count: p.likes_count || 0,
+            comments_count: p.comments_count || 0,
+            views_count: p.views_count || 0,
+            reposts_count: p.reposts_count || 0,
+            favorites_count: p.favorites_count || 0,
+            hashtag: p.hashtag || '',
+            category: p.category || 'عام',
+            type: p.type || 'article'
+        }));
+    } catch (err) {
+        console.error("fetchFeed error:", err);
+        return [];
+    }
+}
+
+async function getUserInteractions(postIds) {
+    const currentUser = JSON.parse(localStorage.getItem('currentUser'));
+    if (!currentUser || !postIds || !Array.isArray(postIds) || postIds.length === 0) {
+        return { likes: {}, favorites: {}, reposts: {}, follows: {} };
+    }
+    try {
+        const { data: likes } = await supabase
+            .from('likes')
+            .select('post_id')
+            .eq('user_id', currentUser.id)
+            .in('post_id', postIds);
+        const { data: favs } = await supabase
+            .from('favorites')
+            .select('post_id')
+            .eq('user_id', currentUser.id)
+            .in('post_id', postIds);
+        const { data: reps } = await supabase
+            .from('reposts')
+            .select('post_id')
+            .eq('user_id', currentUser.id)
+            .in('post_id', postIds);
+        const { data: follows } = await supabase
+            .from('follows')
+            .select('following_id')
+            .eq('follower_id', currentUser.id);
+        const likesMap = {};
+        likes?.forEach(l => likesMap[l.post_id] = true);
+        const favsMap = {};
+        favs?.forEach(f => favsMap[f.post_id] = true);
+        const repsMap = {};
+        reps?.forEach(r => repsMap[r.post_id] = true);
+        const followsSet = new Set(follows?.map(f => f.following_id) || []);
+        return { likes: likesMap, favorites: favsMap, reposts: repsMap, follows: followsSet };
+    } catch (err) {
+        console.error("getUserInteractions error:", err);
+        return { likes: {}, favorites: {}, reposts: {}, follows: {} };
+    }
+}
+
+// ================== إنشاء منشور جديد ==================
+async function createPost(postData) {
+    const currentUser = JSON.parse(localStorage.getItem('currentUser'));
+    if (!currentUser) {
+        showToast('يجب تسجيل الدخول', true);
+        return false;
+    }
+    if (currentUser.isGuest) {
+        showToast('لا يمكن للضيوف نشر منشورات. يرجى تسجيل الدخول أولاً.', true);
+        return false;
+    }
+    try {
+        let { data: existingUser, error: checkError } = await supabase
+            .from('users')
+            .select('id')
+            .eq('id', currentUser.id)
+            .single();
+        if (checkError && checkError.code === 'PGRST116') {
+            const { error: insertError } = await supabase
+                .from('users')
+                .insert({
+                    id: currentUser.id,
+                    username: currentUser.username,
+                    bio: currentUser.bio || '',
+                    avatar: currentUser.avatar || 'https://randomuser.me/api/portraits/lego/1.jpg',
+                    unique_name: currentUser.username.toLowerCase().replace(/\s/g, '_') + '_' + Math.floor(Math.random() * 1000),
+                    followers_count: 0,
+                    following_count: 0
+                });
+            if (insertError) {
+                console.error("فشل إنشاء المستخدم:", insertError);
+                showToast("حدث خطأ في إنشاء حسابك.", true);
+                return false;
+            }
+        } else if (checkError) {
+            console.error("خطأ في التحقق من المستخدم:", checkError);
+            showToast(checkError.message, true);
+            return false;
+        }
+    } catch (err) {
+        console.error("خطأ غير متوقع:", err);
+        showToast("حدث خطأ غير متوقع. حاول مرة أخرى.", true);
+        return false;
+    }
+    const newPost = {
+        title: postData.title || '',
+        content: postData.content || '',
+        image: postData.image || "https://picsum.photos/id/1/1200/800",
+        author_id: currentUser.id,
+        author_name: currentUser.username,
+        likes_count: 0,
+        comments_count: 0,
+        views_count: 0,
+        reposts_count: 0,
+        favorites_count: 0,
+        edit_count: 0,
+        hashtag: postData.hashtag || '',
+        category: postData.category || 'عام',
+        type: postData.type || 'article',
+        hidden: false,
+        created_at: new Date().toISOString()
+    };
+    const { error } = await supabase.from('posts').insert(newPost);
+    if (error) {
+        console.error("فشل نشر المنشور:", error);
+        showToast(error.message, true);
+        return false;
+    }
+    showToast("🎉 تم نشر المنشور بنجاح!");
+    return true;
+}
+
+// ================== التعليقات ==================
+async function fetchComments(postId) {
+    if (!postId) return [];
+    try {
+        const { data, error } = await supabase
+            .from('comments')
+            .select('*, users:user_id (username, avatar)')
+            .eq('post_id', postId)
+            .order('created_at', { ascending: true });
+        if (error) {
+            showToast(error.message, true);
+            return [];
+        }
+        return data || [];
+    } catch (err) {
+        console.error("fetchComments error:", err);
+        return [];
+    }
+}
+
+async function addComment(postId, text) {
+    const currentUser = JSON.parse(localStorage.getItem('currentUser'));
+    if (!currentUser) { showToast('يجب تسجيل الدخول', true); return false; }
+    if (!postId || !text) return false;
+    try {
+        const { error } = await supabase.from('comments').insert({
+            post_id: postId,
+            user_id: currentUser.id,
+            text: text
+        });
+        if (error) {
+            showToast(error.message, true);
+            return false;
+        }
+        await supabase.rpc('increment_comments_count', { row_id: postId });
+        showToast('💬 تم إضافة التعليق');
+        return true;
+    } catch (err) {
+        console.error("addComment error:", err);
+        return false;
     }
 }
 
