@@ -1,0 +1,646 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, user-scalable=yes">
+    <title>الرئيسية | Ramz-X</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            background-color: #000;
+            font-family: 'Cairo', sans-serif;
+            min-height: 100vh;
+            padding-bottom: 70px;
+            transition: background 0.3s;
+        }
+        body.dark { background-color: #000; }
+        body.light { background-color: #f5f5f5; }
+        body.light .header, body.light .post-card, body.light .bottom-sheet, body.light .modal-content {
+            background-color: #fff; color: #000;
+        }
+        body.light .header h1, body.light .post-title, body.light .author-name { color: #000; }
+        body.light .post-text, body.light .comment-text { color: #333; }
+        body.light .action-btn { color: #555; border-color: #ccc; }
+        body.light .action-btn.liked { color: #dc2626; border-color: #dc2626; background: rgba(220,38,38,0.1); }
+        body.light .action-btn.favorited { color: #f59e0b; border-color: #f59e0b; background: rgba(245,158,11,0.1); }
+        body.light .action-btn.reposted { color: #dc2626; border-color: #dc2626; background: rgba(220,38,38,0.1); }
+        .header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 12px 16px;
+            background: #000;
+            border-bottom: 0.5px solid #2c2c2c;
+            position: sticky;
+            top: 0;
+            z-index: 100;
+        }
+        .logo { font-size: 1.5rem; font-weight: 800; background: linear-gradient(135deg, #3b82f6, #ff0050); background-clip: text; -webkit-background-clip: text; color: transparent; cursor: pointer; }
+        .search-icon, .dark-toggle { background: none; border: none; color: white; font-size: 22px; cursor: pointer; }
+        .feed-container { max-width: 600px; margin: 0 auto; padding: 12px; }
+        .post-card {
+            background: #111;
+            border-radius: 1rem;
+            margin-bottom: 16px;
+            overflow: hidden;
+            border: 1px solid #2c2c2c;
+            transition: 0.2s;
+        }
+        .post-card:hover { transform: translateY(-2px); border-color: #ff0050; }
+        .post-header { display: flex; align-items: center; gap: 12px; padding: 12px; }
+        .author-avatar { width: 44px; height: 44px; border-radius: 50%; object-fit: cover; cursor: pointer; background: #2c2c2c; }
+        .author-info { flex: 1; }
+        .author-name-row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+        .author-name { font-weight: bold; font-size: 15px; color: white; }
+        .verified-badge { color: #3b82f6; font-size: 12px; }
+        .follow-btn { background: rgba(255,0,80,0.2); border: 1px solid #ff0050; border-radius: 20px; padding: 2px 10px; font-size: 11px; cursor: pointer; color: #ff0050; }
+        .post-date { font-size: 11px; color: #777; margin-top: 2px; }
+        .post-image { width: 100%; max-height: 400px; object-fit: cover; background: #2c2c2c; }
+        .post-content { padding: 12px; }
+        .post-title { font-weight: bold; font-size: 18px; margin-bottom: 6px; color: white; }
+        .category-badge { font-size: 10px; background: #2c2c2c; padding: 2px 8px; border-radius: 20px; margin-right: 8px; display: inline-block; }
+        .post-text { color: #aaa; font-size: 14px; line-height: 1.4; margin-bottom: 6px; }
+        .post-text-full { display: none; }
+        .more-btn { color: #ff0050; cursor: pointer; font-size: 0.8rem; margin-top: 4px; display: inline-block; }
+        .hashtag { color: #ff0050; font-size: 12px; margin-top: 4px; cursor: pointer; background: rgba(255,0,80,0.1); padding: 2px 8px; border-radius: 20px; display: inline-block; }
+        .action-bar { display: flex; justify-content: space-around; border-top: 1px solid #2c2c2c; padding: 8px; flex-wrap: wrap; gap: 8px; }
+        .action-btn {
+            background: rgba(255,255,255,0.08);
+            backdrop-filter: blur(4px);
+            border: 1px solid rgba(255,255,255,0.15);
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            font-size: 0.8rem;
+            color: #aaa;
+            cursor: pointer;
+            padding: 5px 12px;
+            border-radius: 40px;
+            transition: 0.2s;
+        }
+        .action-btn:hover { background: rgba(255,255,255,0.2); }
+        .action-btn.liked { color: #ff0050; border-color: #ff0050; background: rgba(255,0,80,0.1); }
+        .action-btn.favorited { color: #f59e0b; border-color: #f59e0b; background: rgba(245,158,11,0.1); }
+        .action-btn.reposted { color: #dc2626; border-color: #dc2626; background: rgba(220,38,38,0.1); }
+        .bottom-footer {
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            background-color: #fff;
+            display: flex;
+            justify-content: space-around;
+            padding: 8px 0;
+            border-top: 1px solid #ddd;
+            z-index: 30;
+        }
+        body.dark .bottom-footer { background-color: #111; border-top-color: #2c2c2c; }
+        .footer-button { background: none; border: none; text-align: center; cursor: pointer; transition: 0.2s; color: #333; text-decoration: none; }
+        body.dark .footer-button { color: #aaa; }
+        .footer-button:hover { color: #ff0050; transform: scale(1.05); }
+        .icon { font-size: 22px; display: block; margin-bottom: 4px; }
+        .label { font-size: 11px; }
+        .bottom-sheet {
+            position: fixed;
+            bottom: -100%;
+            left: 0;
+            right: 0;
+            background: #111;
+            border-radius: 1.5rem 1.5rem 0 0;
+            transition: bottom 0.3s;
+            z-index: 1300;
+            max-height: 85vh;
+            display: flex;
+            flex-direction: column;
+        }
+        .bottom-sheet.open { bottom: 0; }
+        .sheet-header { padding: 16px; border-bottom: 1px solid #2c2c2c; display: flex; justify-content: space-between; font-weight: bold; color: white; }
+        .comments-list, .analytics-list { padding: 12px; overflow-y: auto; flex: 1; }
+        .comment-item { margin-bottom: 12px; border-bottom: 1px solid #2c2c2c; padding-bottom: 8px; }
+        .comment-author { font-weight: bold; color: white; font-size: 13px; }
+        .comment-text { color: #ccc; font-size: 13px; margin: 4px 0; }
+        .comment-actions { display: flex; gap: 12px; font-size: 11px; color: #777; }
+        .add-comment { display: flex; gap: 8px; padding: 12px; border-top: 1px solid #2c2c2c; }
+        .add-comment input { flex: 1; background: #2c2c2c; border: none; border-radius: 30px; padding: 10px 16px; color: white; }
+        .overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 1250; }
+        .overlay.show { display: block; }
+        .privacy-tabs { display: flex; gap: 8px; margin-bottom: 16px; border-bottom: 1px solid #2c2c2c; padding-bottom: 8px; }
+        .privacy-tab { background: none; border: none; padding: 6px 12px; cursor: pointer; border-radius: 20px; color: #aaa; }
+        .privacy-tab.active { background: #ff0050; color: white; }
+        .settings-input { width: 100%; padding: 8px; border-radius: 12px; background: #2c2c2c; border: none; color: white; margin-bottom: 12px; }
+        .download-options { display: flex; gap: 16px; justify-content: center; margin: 16px 0; }
+        .download-options button { background: #ff0050; border: none; padding: 8px 20px; border-radius: 30px; color: white; cursor: pointer; }
+        .progress-bar { width: 100%; height: 4px; background: #2c2c2c; border-radius: 2px; margin: 10px 0; overflow: hidden; }
+        .progress-fill { width: 0%; height: 100%; background: #ff0050; transition: width 0.3s; }
+        .empty-state { text-align: center; padding: 60px 20px; color: #666; }
+        #globalToast {
+            position: fixed;
+            bottom: 80px;
+            left: 20px;
+            right: 20px;
+            background: #1f1f1f;
+            color: white;
+            padding: 12px 16px;
+            border-radius: 40px;
+            z-index: 1000;
+            opacity: 0;
+            transition: opacity 0.2s;
+            pointer-events: none;
+            font-size: 14px;
+            border-left: 4px solid #fe2c55;
+        }
+        @media (max-width: 640px) { .action-btn span:not(.count) { display: none; } }
+    </style>
+</head>
+<body>
+
+<div class="header">
+    <div class="logo" onclick="window.location.href='index.html'">Ramz-X</div>
+    <button class="search-icon" id="searchBtn"><i class="fas fa-search"></i></button>
+    <button class="dark-toggle" id="darkModeToggle"><i class="fas fa-moon"></i></button>
+</div>
+
+<main>
+    <div class="feed-container" id="feedContainer">جاري التحميل...</div>
+</main>
+
+<div class="bottom-footer">
+    <a href="home.html" class="footer-button"><i class="fas fa-home icon"></i><div class="label">الرئيسية</div></a>
+    <a href="explore.html" class="footer-button"><i class="fas fa-compass icon"></i><div class="label">استكشاف</div></a>
+    <a href="create-post.html" class="footer-button"><i class="fas fa-plus-circle icon"></i><div class="label">إنشاء</div></a>
+    <a href="inbox.html" class="footer-button"><i class="fas fa-inbox icon"></i><div class="label">صندوق الوارد</div></a>
+    <a href="profile.html" class="footer-button"><i class="fas fa-user icon"></i><div class="label">الملف الشخصي</div></a>
+</div>
+
+<!-- نافذة تعليقات -->
+<div id="commentSheet" class="bottom-sheet">
+    <div class="sheet-header"><span>💬 التعليقات</span><i class="fas fa-times" id="closeCommentSheet" style="cursor:pointer"></i></div>
+    <div class="comments-list" id="commentsList"></div>
+    <div class="add-comment"><input type="text" id="newCommentText" placeholder="اكتب تعليقاً..."><button id="submitCommentBtn" style="background:#ff0050; border:none; padding:0 20px; border-radius:30px; color:white;">إرسال</button></div>
+</div>
+<div id="commentOverlay" class="overlay"></div>
+
+<!-- نافذة تحليلات المنشور -->
+<div id="analyticsSheet" class="bottom-sheet">
+    <div class="sheet-header"><span>📊 تحليلات المنشور</span><i class="fas fa-times" id="closeAnalyticsSheet" style="cursor:pointer"></i></div>
+    <div class="analytics-list" id="analyticsContent"></div>
+</div>
+<div id="analyticsOverlay" class="overlay"></div>
+
+<!-- نافذة مشاركة متقدمة -->
+<div id="shareAdvancedSheet" class="bottom-sheet">
+    <div class="sheet-header"><span>🔁 مشاركة متقدمة</span><i class="fas fa-times" id="closeShareAdvancedSheet" style="cursor:pointer"></i></div>
+    <div style="padding:16px;">
+        <div style="display:flex; gap:16px; justify-content:center; margin-bottom:16px;">
+            <i class="fab fa-facebook" style="font-size:28px; cursor:pointer;"></i>
+            <i class="fab fa-twitter" style="font-size:28px; cursor:pointer;"></i>
+            <i class="fab fa-instagram" style="font-size:28px; cursor:pointer;"></i>
+            <i class="fab fa-whatsapp" style="font-size:28px; cursor:pointer;"></i>
+            <i class="fab fa-telegram" style="font-size:28px; cursor:pointer;"></i>
+        </div>
+        <button id="copyLinkBtn" style="width:100%; background:#ff0050; border:none; padding:10px; border-radius:30px; color:white; margin-bottom:16px;">📋 نسخ الرابط</button>
+        <div id="friendsShareList" style="max-height:200px; overflow-y:auto;"></div>
+    </div>
+</div>
+<div id="shareAdvancedOverlay" class="overlay"></div>
+
+<!-- نافذة إعدادات المنشور المتطورة -->
+<div id="postSettingsSheet" class="bottom-sheet" style="max-height: 90vh;">
+    <div class="sheet-header"><span>⚙️ إعدادات المنشور</span><i class="fas fa-times" id="closeSettingsSheet" style="cursor:pointer"></i></div>
+    <div style="padding:16px; overflow-y:auto; flex:1;">
+        <div class="privacy-tabs" id="settingsTabs">
+            <button class="privacy-tab active" data-settings-tab="edit">✏️ تعديل</button>
+            <button class="privacy-tab" data-settings-tab="privacy">🔒 خيارات النشر</button>
+            <button class="privacy-tab" data-settings-tab="interact">💬 التفاعلات</button>
+        </div>
+        <div id="settingsEditTab">
+            <div class="form-group"><label style="color:white;">العنوان</label><input type="text" id="editTitle" class="settings-input"></div>
+            <div class="form-group"><label style="color:white;">المحتوى</label><textarea id="editContent" rows="5" class="settings-input"></textarea></div>
+            <div class="form-group"><label style="color:white;">رابط الصورة</label><input type="text" id="editImage" class="settings-input"></div>
+            <div class="form-group"><label style="color:white;">هاشتاج</label><input type="text" id="editHashtag" class="settings-input"></div>
+            <div class="form-group"><label style="color:white;">التصنيف</label><select id="editCategory" class="settings-input"><option>أخبار</option><option>ترفيه</option><option>رياضة</option><option>تعليم</option><option>تقنية</option></select></div>
+            <button id="saveEditBtn" style="background:#ff0050; border:none; padding:10px; border-radius:30px; color:white; width:100%;">💾 حفظ التعديلات</button>
+        </div>
+        <div id="settingsPrivacyTab" style="display:none;">
+            <div class="privacy-group"><label style="color:white;">🔒 خصوصية المنشور</label><select id="privacyPost" class="settings-input"><option value="public">عام</option><option value="friends">الأصدقاء فقط</option></select></div>
+            <div class="privacy-group"><label style="color:white;">⏳ مدة الصلاحية</label><select id="privacyDuration" class="settings-input"><option value="unlimited">بلا حدود</option><option value="week">أسبوع</option><option value="month">شهر</option></select></div>
+        </div>
+        <div id="settingsInteractTab" style="display:none;">
+            <div class="privacy-group"><label style="color:white;">💬 خصوصية التعليق</label><select id="privacyComment" class="settings-input"><option value="all">الجميع</option><option value="followers">المتابعون فقط</option><option value="none">لا أحد</option></select></div>
+            <div class="privacy-group"><label style="color:white;">🔁 خصوصية إعادة النشر</label><select id="privacyRepost" class="settings-input"><option value="all">الجميع</option><option value="followers">المتابعون فقط</option><option value="none">لا أحد</option></select></div>
+            <div class="privacy-group"><label style="color:white;">❤️ خصوصية الإعجاب</label><select id="privacyLike" class="settings-input"><option value="all">الجميع</option><option value="followers">المتابعون فقط</option><option value="none">لا أحد</option></select></div>
+        </div>
+    </div>
+</div>
+<div id="postSettingsOverlay" class="overlay"></div>
+
+<!-- نافذة تنزيل المحتوى -->
+<div id="downloadSheet" class="bottom-sheet">
+    <div class="sheet-header"><span>📥 تنزيل المحتوى</span><i class="fas fa-times" id="closeDownloadSheet" style="cursor:pointer"></i></div>
+    <div style="padding:16px;">
+        <div class="download-options"><button id="downloadImageOption">🖼️ تنزيل الصورة</button><button id="downloadPdfOption">📄 تنزيل المقال (PDF)</button></div>
+        <div id="downloadProgress" style="display:none;"><div>جاري التنزيل...</div><div class="progress-bar"><div class="progress-fill" id="progressFill"></div></div></div>
+    </div>
+</div>
+<div id="downloadOverlay" class="overlay"></div>
+
+<div id="globalToast"></div>
+
+<!-- ========== ترتيب تحميل السكربتات الصحيح ========== -->
+<!-- 1. مكتبة Supabase CDN (أولاً) -->
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<!-- 2. ملف common.js (الذي يعتمد على supabase) -->
+<script src="common.js"></script>
+<!-- 3. كود الصفحة (يستخدم دوال common.js) -->
+<script>
+    let currentUser = null;
+    let currentPostForSettings = null;
+    let currentPostForShare = null;
+    let currentPostForDownload = null;
+    let currentPostCommentsId = null;
+
+    // ---------------------- عرض التغذية باستخدام الدوال من common.js ----------------------
+    async function renderFeed() {
+        const container = document.getElementById('feedContainer');
+        container.innerHTML = '<div class="empty-state"><i class="fas fa-spinner fa-pulse"></i><p>جاري التحميل...</p></div>';
+        const posts = await fetchFeed();
+        if (!posts || posts.length === 0) {
+            container.innerHTML = '<div class="empty-state"><i class="far fa-newspaper"></i><p>لا توجد منشورات</p></div>';
+            return;
+        }
+        const postIds = posts.map(p => p.id);
+        const { likes, favorites, reposts, follows } = await getUserInteractions(postIds);
+        let html = '';
+        for (let p of posts) {
+            const isLiked = likes[p.id] || false;
+            const isFav = favorites[p.id] || false;
+            const isReposted = reposts[p.id] || false;
+            const isFollowing = follows.has(p.author_id);
+            const isOwner = (currentUser && p.author_id === currentUser.id);
+            const shortContent = p.content.length > 150 ? p.content.substring(0, 150) + '...' : p.content;
+            const userColor = `hsl(${Math.abs(parseInt(p.author_id?.substring(0,8) || '0', 16) % 360)}, 70%, 60%)`;
+            html += `
+                <div class="post-card" data-id="${p.id}" style="border-left: 3px solid ${userColor};">
+                    <div class="post-header">
+                        <img class="author-avatar" data-author-id="${p.author_id}" src="${p.author_avatar || 'https://randomuser.me/api/portraits/lego/1.jpg'}" onerror="this.src='https://randomuser.me/api/portraits/lego/1.jpg'">
+                        <div class="author-info">
+                            <div class="author-name-row">
+                                <span class="author-name" style="color:${userColor};">${escapeHtml(p.author_name)}</span>
+                                <i class="fas fa-check-circle verified-badge"></i>
+                                ${!isOwner ? `<button class="follow-btn" data-author-id="${p.author_id}">${isFollowing ? 'متابَع' : 'متابعة'}</button>` : ''}
+                            </div>
+                            <div class="post-date">${new Date(p.created_at).toLocaleString('ar')}</div>
+                        </div>
+                    </div>
+                    ${p.image ? `<img class="post-image" src="${p.image}" loading="lazy" onerror="this.src='https://picsum.photos/id/1/800/600'">` : ''}
+                    <div class="post-content">
+                        <div class="post-title">${escapeHtml(p.title)} <span class="category-badge">${p.category || 'عام'}</span></div>
+                        <div class="post-text-short">${escapeHtml(shortContent)}</div>
+                        <div class="post-text-full" style="display:none;">${escapeHtml(p.content)}</div>
+                        <span class="more-btn" data-id="${p.id}">أكثر</span>
+                        ${p.hashtag ? `<div class="hashtag" data-hashtag="${escapeHtml(p.hashtag)}">#${escapeHtml(p.hashtag)}</div>` : ''}
+                    </div>
+                    <div class="action-bar">
+                        <button class="action-btn like-btn ${isLiked ? 'liked' : ''}" data-id="${p.id}"><i class="fas fa-heart"></i> <span class="count">${formatNumber(p.likes_count)}</span></button>
+                        <button class="action-btn comment-btn" data-id="${p.id}"><i class="far fa-comment"></i> <span>${p.comments_count}</span></button>
+                        <button class="action-btn view-btn analytics-btn" data-id="${p.id}"><i class="fas fa-eye"></i> <span>${formatNumber(p.views_count)}</span></button>
+                        <button class="action-btn repost-btn ${isReposted ? 'reposted' : ''}" data-id="${p.id}"><i class="fas fa-retweet"></i> <span class="repost-count">${formatNumber(p.reposts_count)}</span></button>
+                        <button class="action-btn fav-btn ${isFav ? 'favorited' : ''}" data-id="${p.id}"><i class="${isFav ? 'fas fa-star' : 'far fa-star'}"></i> <span>${formatNumber(p.favorites_count)}</span></button>
+                        ${isOwner ? `<button class="action-btn settings-btn" data-id="${p.id}"><i class="fas fa-cog"></i> <span>إعدادات</span></button>` : ''}
+                    </div>
+                </div>
+            `;
+        }
+        container.innerHTML = html;
+        attachEvents();
+    }
+
+    function attachEvents() {
+        document.querySelectorAll('.like-btn').forEach(btn => {
+            btn.onclick = e => { e.stopPropagation(); toggleLike(parseInt(btn.dataset.id), btn); };
+        });
+        document.querySelectorAll('.fav-btn').forEach(btn => {
+            btn.onclick = e => { e.stopPropagation(); toggleFavorite(parseInt(btn.dataset.id), btn); };
+        });
+        document.querySelectorAll('.repost-btn').forEach(btn => {
+            btn.onclick = e => { e.stopPropagation(); toggleRepost(parseInt(btn.dataset.id), btn); };
+            let timer;
+            btn.ontouchstart = btn.onmousedown = e => { timer = setTimeout(() => openShareAdvanced(parseInt(btn.dataset.id)), 300); };
+            btn.ontouchend = btn.onmouseup = () => clearTimeout(timer);
+        });
+        document.querySelectorAll('.follow-btn').forEach(btn => {
+            btn.onclick = e => { e.stopPropagation(); toggleFollow(parseInt(btn.dataset.authorId), btn); };
+        });
+        document.querySelectorAll('.comment-btn').forEach(btn => {
+            btn.onclick = e => { e.stopPropagation(); openComments(parseInt(btn.dataset.id)); };
+        });
+        document.querySelectorAll('.view-btn').forEach(btn => {
+            btn.onclick = e => { e.stopPropagation(); increaseView(btn); };
+        });
+        document.querySelectorAll('.settings-btn').forEach(btn => {
+            btn.onclick = e => { e.stopPropagation(); openPostSettings(parseInt(btn.dataset.id)); };
+        });
+        document.querySelectorAll('.analytics-btn').forEach(btn => {
+            let timer;
+            btn.ontouchstart = btn.onmousedown = e => { timer = setTimeout(() => openAnalytics(parseInt(btn.dataset.id)), 300); };
+            btn.ontouchend = btn.onmouseup = () => clearTimeout(timer);
+        });
+        document.querySelectorAll('.post-card').forEach(card => {
+            let timer;
+            card.ontouchstart = card.onmousedown = e => { if (!e.target.closest('.action-btn')) timer = setTimeout(() => openDownloadOptions(parseInt(card.dataset.id)), 300); };
+            card.ontouchend = card.onmouseup = () => clearTimeout(timer);
+        });
+        document.querySelectorAll('.author-avatar').forEach(avatar => {
+            avatar.onclick = e => { e.stopPropagation(); window.location.href = `public-profile.html?user=${avatar.dataset.authorId}`; };
+        });
+        document.querySelectorAll('.hashtag').forEach(tag => {
+            tag.onclick = e => { e.stopPropagation(); window.location.href = `search.html?q=${encodeURIComponent(tag.innerText.substring(1))}`; };
+        });
+        document.querySelectorAll('.more-btn').forEach(btn => {
+            btn.onclick = e => { e.stopPropagation(); toggleFullText(btn.dataset.id); };
+        });
+    }
+
+    function toggleFullText(postId) {
+        const card = document.querySelector(`.post-card[data-id="${postId}"]`);
+        if (!card) return;
+        const shortDiv = card.querySelector('.post-text-short');
+        const fullDiv = card.querySelector('.post-text-full');
+        const moreBtn = card.querySelector('.more-btn');
+        if (shortDiv.style.display !== 'none') {
+            shortDiv.style.display = 'none';
+            fullDiv.style.display = 'block';
+            moreBtn.innerText = 'أقل';
+        } else {
+            shortDiv.style.display = 'block';
+            fullDiv.style.display = 'none';
+            moreBtn.innerText = 'أكثر';
+        }
+    }
+
+    async function increaseView(btn) {
+        const postId = parseInt(btn.dataset.id);
+        await supabase.rpc('increment_views', { row_id: postId });
+        const countSpan = btn.querySelector('span');
+        let current = parseInt(countSpan.innerText.replace(/[^0-9]/g, ''));
+        countSpan.innerText = formatNumber(current + 1);
+    }
+
+    // ---------------------- تحليلات المنشور ----------------------
+    async function openAnalytics(postId) {
+        const { data: post, error } = await supabase.from('posts').select('*').eq('id', postId).single();
+        if (error) { showToast(error.message, true); return; }
+        const favCount = post.favorites_count || 0;
+        const interactionRate = ((post.likes_count + post.comments_count + favCount + post.reposts_count) / (post.views_count || 1)) * 100;
+        const html = `
+            <div><strong>👁️ المشاهدات:</strong> ${formatNumber(post.views_count)}</div>
+            <div><strong>💬 التعليقات:</strong> ${post.comments_count}</div>
+            <div><strong>⭐ الحفظ (مفضلة):</strong> ${formatNumber(favCount)}</div>
+            <div><strong>🔁 إعادة النشر:</strong> ${formatNumber(post.reposts_count)}</div>
+            <div><strong>📊 نسبة التفاعل:</strong> ${interactionRate.toFixed(1)}%</div>
+        `;
+        document.getElementById('analyticsContent').innerHTML = html;
+        document.getElementById('analyticsSheet').classList.add('open');
+        document.getElementById('analyticsOverlay').classList.add('show');
+    }
+    function closeAnalyticsSheet() {
+        document.getElementById('analyticsSheet').classList.remove('open');
+        document.getElementById('analyticsOverlay').classList.remove('show');
+    }
+    document.getElementById('closeAnalyticsSheet').onclick = closeAnalyticsSheet;
+    document.getElementById('analyticsOverlay').onclick = closeAnalyticsSheet;
+
+    // ---------------------- التعليقات ----------------------
+    async function openComments(postId) {
+        const comments = await fetchComments(postId);
+        currentPostCommentsId = postId;
+        renderComments(comments);
+        document.getElementById('commentSheet').classList.add('open');
+        document.getElementById('commentOverlay').classList.add('show');
+    }
+    function renderComments(comments) {
+        const container = document.getElementById('commentsList');
+        let html = '';
+        comments?.forEach(c => {
+            html += `
+                <div class="comment-item" data-comment-id="${c.id}">
+                    <div class="comment-author">${escapeHtml(c.users?.username || c.user_id)}</div>
+                    <div class="comment-text">${escapeHtml(c.text)}</div>
+                    <div class="comment-actions">
+                        <span class="like-comment" data-id="${c.id}">❤️ ${c.likes}</span>
+                    </div>
+                </div>
+            `;
+        });
+        container.innerHTML = html || '<p style="text-align:center;color:#777;">لا توجد تعليقات</p>';
+        document.querySelectorAll('.like-comment').forEach(el => {
+            el.onclick = async () => {
+                const commentId = parseInt(el.dataset.id);
+                await supabase.rpc('increment_comment_likes', { comment_id: commentId });
+                const currentLikes = parseInt(el.innerText.match(/\d+/)?.[0] || 0);
+                el.innerText = `❤️ ${currentLikes + 1}`;
+            };
+        });
+    }
+    document.getElementById('submitCommentBtn').onclick = async () => {
+        const text = document.getElementById('newCommentText').value.trim();
+        if (!text || !currentPostCommentsId) { showToast('لا يوجد تعليق أو لم يتم اختيار منشور', true); return; }
+        const success = await addComment(currentPostCommentsId, text);
+        if (success) {
+            document.getElementById('newCommentText').value = '';
+            openComments(currentPostCommentsId);
+            renderFeed();
+        }
+    };
+    function closeCommentSheet() {
+        document.getElementById('commentSheet').classList.remove('open');
+        document.getElementById('commentOverlay').classList.remove('show');
+    }
+    document.getElementById('closeCommentSheet').onclick = closeCommentSheet;
+    document.getElementById('commentOverlay').onclick = closeCommentSheet;
+
+    // ---------------------- مشاركة متقدمة ----------------------
+    async function openShareAdvanced(postId) {
+        const { data: post } = await supabase.from('posts').select('title').eq('id', postId).single();
+        currentPostForShare = { id: postId, title: post.title };
+        const { data: friends } = await supabase.from('follows').select('following_id, users:following_id (username)').eq('follower_id', currentUser.id);
+        const container = document.getElementById('friendsShareList');
+        container.innerHTML = friends?.map(f => `<div data-friend-id="${f.following_id}" style="padding:8px; border-bottom:1px solid #2c2c2c; cursor:pointer;">${escapeHtml(f.users?.username)}</div>`).join('') || '<div>لا يوجد أصدقاء</div>';
+        document.querySelectorAll('[data-friend-id]').forEach(el => {
+            el.onclick = () => { showToast(`تم إرسال المنشور إلى ${el.innerText}`); closeShareAdvancedSheet(); };
+        });
+        document.getElementById('shareAdvancedSheet').classList.add('open');
+        document.getElementById('shareAdvancedOverlay').classList.add('show');
+    }
+    function closeShareAdvancedSheet() {
+        document.getElementById('shareAdvancedSheet').classList.remove('open');
+        document.getElementById('shareAdvancedOverlay').classList.remove('show');
+    }
+    document.getElementById('closeShareAdvancedSheet').onclick = closeShareAdvancedSheet;
+    document.getElementById('shareAdvancedOverlay').onclick = closeShareAdvancedSheet;
+    document.getElementById('copyLinkBtn').onclick = () => {
+        const link = `${window.location.origin}${window.location.pathname}?post=${currentPostForShare?.id}`;
+        navigator.clipboard.writeText(link);
+        showToast('📋 تم نسخ الرابط');
+        closeShareAdvancedSheet();
+    };
+
+    // ---------------------- إعدادات المنشور (تعديل، خصوصية) ----------------------
+    async function openPostSettings(postId) {
+        const { data: post, error } = await supabase.from('posts').select('*').eq('id', postId).single();
+        if (error || post.author_id !== currentUser.id) { showToast('لا يمكنك تعديل هذا المنشور', true); return; }
+        currentPostForSettings = post;
+        document.getElementById('editTitle').value = post.title;
+        document.getElementById('editContent').value = post.content;
+        document.getElementById('editImage').value = post.image || '';
+        document.getElementById('editHashtag').value = post.hashtag || '';
+        document.getElementById('editCategory').value = post.category || 'أخبار';
+        document.getElementById('privacyPost').value = post.privacy_post || 'public';
+        document.getElementById('privacyDuration').value = post.duration || 'unlimited';
+        document.getElementById('privacyComment').value = post.privacy_comment || 'all';
+        document.getElementById('privacyRepost').value = post.privacy_repost || 'all';
+        document.getElementById('privacyLike').value = post.privacy_like || 'all';
+        document.getElementById('postSettingsSheet').classList.add('open');
+        document.getElementById('postSettingsOverlay').classList.add('show');
+    }
+    function closeSettingsSheet() {
+        document.getElementById('postSettingsSheet').classList.remove('open');
+        document.getElementById('postSettingsOverlay').classList.remove('show');
+    }
+    document.getElementById('closeSettingsSheet').onclick = closeSettingsSheet;
+    document.getElementById('postSettingsOverlay').onclick = closeSettingsSheet;
+    document.querySelectorAll('[data-settings-tab]').forEach(tab => {
+        tab.onclick = () => {
+            document.querySelectorAll('[data-settings-tab]').forEach(t => t.classList.remove('active'));
+            tab.classList.add('active');
+            const target = tab.dataset.settingsTab;
+            document.getElementById('settingsEditTab').style.display = target === 'edit' ? 'block' : 'none';
+            document.getElementById('settingsPrivacyTab').style.display = target === 'privacy' ? 'block' : 'none';
+            document.getElementById('settingsInteractTab').style.display = target === 'interact' ? 'block' : 'none';
+        };
+    });
+    document.getElementById('saveEditBtn').onclick = async () => {
+        if (!currentPostForSettings) return;
+        const updated = {
+            title: document.getElementById('editTitle').value,
+            content: document.getElementById('editContent').value,
+            image: document.getElementById('editImage').value,
+            hashtag: document.getElementById('editHashtag').value,
+            category: document.getElementById('editCategory').value,
+            privacy_post: document.getElementById('privacyPost').value,
+            duration: document.getElementById('privacyDuration').value,
+            privacy_comment: document.getElementById('privacyComment').value,
+            privacy_repost: document.getElementById('privacyRepost').value,
+            privacy_like: document.getElementById('privacyLike').value,
+            edit_count: (currentPostForSettings.edit_count || 0) + 1
+        };
+        if (updated.edit_count > 3) { showToast('لا يمكن التعديل أكثر من 3 مرات', true); closeSettingsSheet(); return; }
+        const { error } = await supabase.from('posts').update(updated).eq('id', currentPostForSettings.id);
+        if (error) { showToast(error.message, true); return; }
+        showToast('✅ تم حفظ التغييرات');
+        closeSettingsSheet();
+        renderFeed();
+    };
+
+    // ---------------------- تنزيل المحتوى (PDF / صورة) ----------------------
+    async function openDownloadOptions(postId) {
+        const { data: post } = await supabase.from('posts').select('*').eq('id', postId).single();
+        currentPostForDownload = post;
+        document.getElementById('downloadSheet').classList.add('open');
+        document.getElementById('downloadOverlay').classList.add('show');
+    }
+    function closeDownloadSheet() {
+        document.getElementById('downloadSheet').classList.remove('open');
+        document.getElementById('downloadOverlay').classList.remove('show');
+        document.getElementById('downloadProgress').style.display = 'none';
+    }
+    document.getElementById('closeDownloadSheet').onclick = closeDownloadSheet;
+    document.getElementById('downloadOverlay').onclick = closeDownloadSheet;
+    document.getElementById('downloadImageOption').onclick = () => {
+        if (!currentPostForDownload?.image) { showToast('لا توجد صورة للتحميل', true); return; }
+        const progressDiv = document.getElementById('downloadProgress');
+        const progressFill = document.getElementById('progressFill');
+        progressDiv.style.display = 'block';
+        let percent = 0;
+        const interval = setInterval(() => {
+            percent += 10;
+            progressFill.style.width = percent + '%';
+            if (percent >= 100) {
+                clearInterval(interval);
+                const link = document.createElement('a');
+                link.href = currentPostForDownload.image;
+                link.download = `ramz_x_image_${currentPostForDownload.id}.jpg`;
+                link.click();
+                setTimeout(() => { closeDownloadSheet(); showToast('✅ تم تنزيل الصورة'); }, 500);
+            }
+        }, 100);
+    };
+    document.getElementById('downloadPdfOption').onclick = async () => {
+        if (!currentPostForDownload) return;
+        showToast('جاري تجهيز ملف PDF...');
+        const { jsPDF } = window.jspdf;
+        const pdf = new jsPDF('p', 'mm', 'a4');
+        const pageWidth = pdf.internal.pageSize.getWidth();
+        let y = 10;
+        pdf.setFont('helvetica', 'bold');
+        pdf.setFontSize(18);
+        pdf.text(currentPostForDownload.title, 10, y);
+        y += 10;
+        pdf.setFontSize(12);
+        pdf.setFont('helvetica', 'normal');
+        const splitText = pdf.splitTextToSize(currentPostForDownload.content, pageWidth - 20);
+        pdf.text(splitText, 10, y);
+        y += splitText.length * 7;
+        if (currentPostForDownload.image) {
+            try {
+                const img = new Image();
+                img.crossOrigin = "Anonymous";
+                img.src = currentPostForDownload.image;
+                await new Promise((resolve) => { img.onload = resolve; });
+                const canvas = document.createElement('canvas');
+                canvas.width = img.width;
+                canvas.height = img.height;
+                const ctx = canvas.getContext('2d');
+                ctx.drawImage(img, 0, 0);
+                const imgData = canvas.toDataURL('image/jpeg');
+                const imgWidth = 80;
+                const imgHeight = (img.height * imgWidth) / img.width;
+                pdf.addImage(imgData, 'JPEG', 10, y, imgWidth, imgHeight);
+            } catch (e) { console.error(e); }
+        }
+        pdf.save(`ramz_x_article_${currentPostForDownload.id}.pdf`);
+        closeDownloadSheet();
+        showToast('✅ تم تنزيل المقال كـ PDF');
+    };
+
+    // ---------------------- البحث والوضع الليلي ----------------------
+    document.getElementById('searchBtn').onclick = () => window.location.href = 'search.html';
+    function applyTheme() {
+        if (localStorage.getItem('darkMode') === 'true') {
+            document.body.classList.add('dark');
+            document.body.classList.remove('light');
+        } else {
+            document.body.classList.add('light');
+            document.body.classList.remove('dark');
+        }
+    }
+    document.getElementById('darkModeToggle').onclick = () => {
+        localStorage.setItem('darkMode', !document.body.classList.contains('dark'));
+        applyTheme();
+    };
+    applyTheme();
+
+    // ---------------------- بدء التشغيل ----------------------
+    (async () => {
+        await initDB();              // تهيئة قاعدة البيانات (من common.js)
+        currentUser = await checkSession();
+        if (!currentUser) return;
+        await renderFeed();
+    })();
+</script>
+</body>
+</html>
